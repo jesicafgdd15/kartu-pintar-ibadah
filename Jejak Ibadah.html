@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jejak Ibadah</title>
+<style>
+:root{--bg:#f3efe4;--ink:#1f3a34;--card:#fffaf0;--accent:#1f6f5c;--warn:#b3422f;--muted:#6b7b75;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10211e;--ink:#eae6d6;--card:#1a312c;--accent:#7fd1b4;--warn:#ef8a74;--muted:#9bb0a8}}
+:root[data-theme="dark"]{--bg:#10211e;--ink:#eae6d6;--card:#1a312c;--accent:#7fd1b4;--warn:#ef8a74;--muted:#9bb0a8}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:Georgia,"Times New Roman",serif;display:flex;align-items:center;justify-content:center}
+#wrap{position:relative;width:min(100vw,420px);height:min(100%,640px);background:var(--card);border-radius:18px;overflow:hidden;box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 15%,transparent)}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+#hud{position:absolute;top:10px;left:14px;right:14px;display:flex;justify-content:space-between;font-size:18px;pointer-events:none}
+#ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px;background:color-mix(in srgb,var(--card) 92%,transparent)}
+#ov h1{font-size:34px;margin:0 0 8px;letter-spacing:.5px}
+#ov p{margin:6px 0;max-width:300px;line-height:1.5;color:var(--muted);font-size:16px}
+button{margin-top:18px;font:inherit;font-size:18px;padding:12px 30px;border-radius:999px;border:0;background:var(--accent);color:var(--bg);cursor:pointer}
+button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="c" width="420" height="640" aria-label="Area permainan"></canvas>
+<div id="hud"><span id="sc">Pahala: 0</span><span id="lv">❤❤❤</span></div>
+<div id="ov">
+<h1>Jejak Ibadah</h1>
+<p>Tangkap amalan baik: 🤲 doa, 📖 membaca kitab, 💝 sedekah, 🙏 syukur, 🕯️ hening.</p>
+<p>Hindari pengganggu: 📱 gawai, 😡 amarah, 😴 malas.</p>
+<p>Geser jari atau tekan tombol panah kiri dan kanan.</p>
+<p id="best"></p>
+<button id="go">Mulai</button>
+</div>
+</div>
+<script>
+const cv=document.getElementById('c'),x=cv.getContext('2d'),W=420,H=640;
+const good=['🤲','📖','💝','🙏','🕯️'],bad=['📱','😡','😴'];
+let items,px,score,lives,t,run=false,best=0,keys={},spawn,speed;
+try{best=+localStorage.getItem('jejak-best')||0}catch(e){}
+const $=id=>document.getElementById(id);
+function reset(){items=[];px=W/2;score=0;lives=3;t=0;spawn=0;speed=2;hud()}
+function hud(){$('sc').textContent='Pahala: '+score;$('lv').textContent='❤'.repeat(Math.max(lives,0))}
+function start(){reset();run=true;$('ov').style.display='none';requestAnimationFrame(loop)}
+function end(){
+ run=false;
+ if(score>best){best=score;try{localStorage.setItem('jejak-best',best)}catch(e){}}
+ $('ov').style.display='flex';
+ $('ov').querySelector('h1').textContent='Tetap istiqamah';
+ $('best').textContent='Pahala kamu: '+score+' (terbaik: '+best+')';
+ $('go').textContent='Main lagi';
+}
+function loop(){
+ if(!run)return;
+ t++;
+ if(keys.ArrowLeft)px-=7;if(keys.ArrowRight)px+=7;
+ px=Math.max(34,Math.min(W-34,px));
+ speed=2+score/120;
+ if(--spawn<=0){
+  const isBad=Math.random()<0.3;
+  const set=isBad?bad:good;
+  items.push({x:30+Math.random()*(W-60),y:-30,e:set[Math.floor(Math.random()*set.length)],bad:isBad,s:speed*(0.8+Math.random()*0.5)});
+  spawn=Math.max(18,48-score/15);
+ }
+ for(const i of items){i.y+=i.s}
+ items=items.filter(i=>{
+  if(Math.abs(i.x-px)<38&&i.y>H-110&&i.y<H-50){
+   if(i.bad){lives--}else{score+=10}
+   hud();return false;
+  }
+  if(i.y>H+30){return false}
+  return true;
+ });
+ draw();
+ if(lives<=0){end();return}
+ requestAnimationFrame(loop);
+}
+function draw(){
+ const cs=getComputedStyle(document.documentElement);
+ x.clearRect(0,0,W,H);
+ const g=x.createLinearGradient(0,0,0,H);
+ g.addColorStop(0,cs.getPropertyValue('--card'));g.addColorStop(1,cs.getPropertyValue('--bg'));
+ x.fillStyle=g;x.fillRect(0,0,W,H);
+ x.font='34px serif';x.textAlign='center';x.textBaseline='middle';
+ for(const i of items)x.fillText(i.e,i.x,i.y);
+ x.fillStyle=cs.getPropertyValue('--accent');
+ x.beginPath();x.roundRect(px-40,H-80,80,16,8);x.fill();
+ x.font='30px serif';x.fillText('🕌',px,H-96);
+}
+function pos(e){const r=cv.getBoundingClientRect();const cx=(e.touches?e.touches[0].clientX:e.clientX);px=(cx-r.left)/r.width*W}
+cv.addEventListener('pointermove',pos);
+cv.addEventListener('touchmove',e=>{pos(e)},{passive:true});
+addEventListener('keydown',e=>{keys[e.key]=true});
+addEventListener('keyup',e=>{keys[e.key]=false});
+$('go').onclick=start;
+if(best)$('best').textContent='Pahala terbaik: '+best;
+reset();draw();
+</script>
+</body>
+</html>
